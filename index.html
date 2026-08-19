@@ -1,104 +1,339 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
-  <head>
-    <meta charset="UTF-8" />
-    <title>تعديل ملف HTML</title>
+
+<head>
+    <meta charset="UTF-8">
+    <title>تعديل بيانات GitHub</title>
 
     <style>
-      body {
-        font-family: Arial;
-        padding: 30px;
-      }
+        body {
+            font-family: Arial;
+            max-width: 700px;
+            margin: 40px auto;
+        }
 
-      input {
-        padding: 10px;
-        margin: 5px;
-      }
+        input {
+            padding: 10px;
+            margin: 5px;
+        }
 
-      button {
-        padding: 10px 20px;
-        margin: 5px;
-        cursor: pointer;
-      }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
 
-      table {
-        margin-top: 20px;
-        border-collapse: collapse;
-        width: 400px;
-      }
+        table {
+            width: 100%;
+            margin-top: 30px;
+            border-collapse: collapse;
+        }
 
-      th,
-      td {
-        border: 1px solid black;
-        padding: 10px;
-        text-align: center;
-      }
+        th,
+        td {
+            border: 1px solid #999;
+            padding: 10px;
+            text-align: center;
+        }
     </style>
-  </head>
+</head>
 
-  <body>
-    <h2>تعديل بيانات HTML</h2>
+<body>
 
-    <button onclick="chooseFile()">اختيار ملف HTML</button>
+    <h1>إدارة البيانات</h1>
 
-    <br /><br />
+    <input
+        type="text"
+        id="name"
+        placeholder="الاسم"
+    >
 
-    <input type="text" id="name" placeholder="الاسم" />
+    <input
+        type="number"
+        id="age"
+        placeholder="العمر"
+    >
 
-    <input type="number" id="age" placeholder="العمر" />
+    <button onclick="addData()">
+        إضافة
+    </button>
 
-    <button onclick="saveData()">حفظ</button>
+    <button onclick="saveToGitHub()">
+        حفظ على GitHub
+    </button>
 
     <div id="message"></div>
 
-    <script>
-      // هنا سنحفظ الملف الذي اختاره المستخدم
-      let fileHandle = null;
+    <table>
 
-      // اختيار ملف HTML
-      async function chooseFile() {
-        try {
-          fileHandle = await window.showOpenFilePicker({
-            types: [
-              {
-                description: "HTML Files",
-                accept: {
-                  "text/html": [".html"],
-                },
-              },
-            ],
-            multiple: false,
-          });
+        <thead>
+            <tr>
+                <th>الاسم</th>
+                <th>العمر</th>
+                <th>حذف</th>
+            </tr>
+        </thead>
 
-          fileHandle = fileHandle[0];
+        <tbody id="tableBody"></tbody>
 
-          document.getElementById("message").textContent =
-            "تم اختيار الملف بنجاح";
-        } catch (error) {
-          console.log(error);
+    </table>
+
+
+<script>
+
+// =====================================
+// إعدادات GitHub
+// =====================================
+
+const GITHUB_USERNAME = "YOUR_USERNAME";
+
+const GITHUB_REPOSITORY = "YOUR_REPOSITORY";
+
+const FILE_PATH = "data.html";
+
+const BRANCH = "main";
+
+// لا تضع Token هنا في موقع عام
+const GITHUB_TOKEN = "YOUR_TOKEN";
+
+
+// =====================================
+// البيانات
+// =====================================
+
+let data = [];
+
+let fileSHA = null;
+
+
+// =====================================
+// عند فتح الصفحة
+// =====================================
+
+window.onload = function () {
+
+    loadFromGitHub();
+
+};
+
+
+// =====================================
+// قراءة data.html من GitHub
+// =====================================
+
+async function loadFromGitHub() {
+
+    try {
+
+        const url =
+            `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/contents/${FILE_PATH}?ref=${BRANCH}`;
+
+        const response = await fetch(url, {
+
+            headers: {
+                "Accept": "application/vnd.github+json"
+            }
+
+        });
+
+
+        if (!response.ok) {
+
+            throw new Error("فشل تحميل الملف");
+
         }
-      }
 
-      // حفظ البيانات داخل الملف
-      async function saveData() {
-        if (!fileHandle) {
-          alert("اختار ملف HTML أولاً");
 
-          return;
-        }
+        const result = await response.json();
 
-        let name = document.getElementById("name").value;
 
-        let age = document.getElementById("age").value;
+        // نحتاج SHA عند تحديث الملف
+        fileSHA = result.sha;
 
-        if (name === "" || age === "") {
-          alert("اكتب الاسم والعمر");
 
-          return;
-        }
+        // تحويل Base64 إلى HTML
+        const html =
+            decodeURIComponent(
+                escape(
+                    atob(result.content.replace(/\n/g, ""))
+                )
+            );
 
-        // محتوى HTML الجديد
-        let html = `
+
+        // استخراج البيانات من HTML
+        const parser = new DOMParser();
+
+        const doc =
+            parser.parseFromString(html, "text/html");
+
+
+        const rows =
+            doc.querySelectorAll("#dataTable tbody tr");
+
+
+        data = [];
+
+
+        rows.forEach(row => {
+
+            const cells = row.querySelectorAll("td");
+
+
+            if (cells.length >= 2) {
+
+                data.push({
+
+                    name: cells[0].textContent,
+
+                    age: cells[1].textContent
+
+                });
+
+            }
+
+        });
+
+
+        displayData();
+
+
+        showMessage("تم تحميل البيانات من GitHub");
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        showMessage("حدث خطأ أثناء تحميل البيانات");
+
+    }
+
+}
+
+
+// =====================================
+// إضافة بيانات
+// =====================================
+
+function addData() {
+
+    const name =
+        document.getElementById("name").value.trim();
+
+    const age =
+        document.getElementById("age").value.trim();
+
+
+    if (!name || !age) {
+
+        alert("اكتب الاسم والعمر");
+
+        return;
+
+    }
+
+
+    data.push({
+
+        name: name,
+
+        age: age
+
+    });
+
+
+    displayData();
+
+
+    document.getElementById("name").value = "";
+
+    document.getElementById("age").value = "";
+
+}
+
+
+// =====================================
+// عرض البيانات
+// =====================================
+
+function displayData() {
+
+    const tableBody =
+        document.getElementById("tableBody");
+
+
+    tableBody.innerHTML = "";
+
+
+    data.forEach((person, index) => {
+
+        const row =
+            document.createElement("tr");
+
+
+        row.innerHTML = `
+
+            <td>${escapeHTML(person.name)}</td>
+
+            <td>${escapeHTML(person.age)}</td>
+
+            <td>
+                <button onclick="deleteData(${index})">
+                    حذف
+                </button>
+            </td>
+
+        `;
+
+
+        tableBody.appendChild(row);
+
+    });
+
+}
+
+
+// =====================================
+// حذف بيانات
+// =====================================
+
+function deleteData(index) {
+
+    data.splice(index, 1);
+
+    displayData();
+
+}
+
+
+// =====================================
+// إنشاء محتوى data.html
+// =====================================
+
+function createHTML() {
+
+    let rows = "";
+
+
+    data.forEach(person => {
+
+        rows += `
+
+            <tr>
+
+                <td>${escapeHTML(person.name)}</td>
+
+                <td>${escapeHTML(person.age)}</td>
+
+            </tr>
+
+        `;
+
+    });
+
+
+    return `
+
 <!DOCTYPE html>
 
 <html lang="ar" dir="rtl">
@@ -107,50 +342,206 @@
 
     <meta charset="UTF-8">
 
-    <title>بيانات المستخدم</title>
+    <title>البيانات</title>
 
 </head>
 
 <body>
 
-    <h1>بيانات المستخدم</h1>
+    <h1>بيانات المستخدمين</h1>
 
-    <table border="1">
+    <table border="1" id="dataTable">
 
-        <tr>
-            <th>الاسم</th>
-            <th>العمر</th>
-        </tr>
+        <thead>
 
-        <tr>
-            <td>${name}</td>
-            <td>${age}</td>
-        </tr>
+            <tr>
+
+                <th>الاسم</th>
+
+                <th>العمر</th>
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            ${rows}
+
+        </tbody>
 
     </table>
 
 </body>
 
 </html>
+
 `;
 
-        // فتح الملف للكتابة
-        const writable = await fileHandle.createWritable();
+}
 
-        // كتابة HTML الجديد
-        await writable.write(html);
 
-        // إغلاق الملف وحفظه
-        await writable.close();
+// =====================================
+// حفظ الملف على GitHub
+// =====================================
 
-        document.getElementById("message").textContent =
-          "تم حفظ البيانات داخل ملف HTML بنجاح";
+async function saveToGitHub() {
 
-        // تفريغ الحقول
-        document.getElementById("name").value = "";
+    if (!fileSHA) {
 
-        document.getElementById("age").value = "";
-      }
-    </script>
-  </body>
+        alert("لم يتم تحميل الملف أولاً");
+
+        return;
+
+    }
+
+
+    if (
+        GITHUB_TOKEN === "YOUR_TOKEN"
+    ) {
+
+        alert("ضع GitHub Token أولاً");
+
+        return;
+
+    }
+
+
+    try {
+
+        showMessage("جاري الحفظ...");
+
+
+        const html =
+            createHTML();
+
+
+        // تحويل HTML إلى Base64
+        const encodedContent =
+            btoa(
+                unescape(
+                    encodeURIComponent(html)
+                )
+            );
+
+
+        const url =
+            `https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPOSITORY}/contents/${FILE_PATH}`;
+
+
+        const response =
+            await fetch(url, {
+
+                method: "PUT",
+
+                headers: {
+
+                    "Accept":
+                        "application/vnd.github+json",
+
+                    "Authorization":
+                        `Bearer ${GITHUB_TOKEN}`,
+
+                    "X-GitHub-Api-Version":
+                        "2022-11-28",
+
+                    "Content-Type":
+                        "application/json"
+
+                },
+
+                body: JSON.stringify({
+
+                    message:
+                        "Update data.html",
+
+                    content:
+                        encodedContent,
+
+                    sha:
+                        fileSHA,
+
+                    branch:
+                        BRANCH
+
+                })
+
+            });
+
+
+        const result =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            console.error(result);
+
+            throw new Error(
+                result.message ||
+                "فشل الحفظ"
+            );
+
+        }
+
+
+        // SHA الجديد
+        fileSHA = result.content.sha;
+
+
+        showMessage(
+            "تم حفظ البيانات على GitHub بنجاح ✅"
+        );
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        showMessage(
+            "حدث خطأ أثناء الحفظ: " +
+            error.message
+        );
+
+    }
+
+}
+
+
+// =====================================
+// حماية HTML
+// =====================================
+
+function escapeHTML(value) {
+
+    return String(value)
+
+        .replace(/&/g, "&amp;")
+
+        .replace(/</g, "&lt;")
+
+        .replace(/>/g, "&gt;")
+
+        .replace(/"/g, "&quot;")
+
+        .replace(/'/g, "&#039;");
+
+}
+
+
+// =====================================
+// رسالة
+// =====================================
+
+function showMessage(message) {
+
+    document.getElementById("message").textContent =
+        message;
+
+}
+
+</script>
+
+</body>
+
 </html>
